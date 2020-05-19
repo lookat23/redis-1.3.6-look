@@ -924,6 +924,31 @@ int stringmatchlen(const char *pattern, int patternLen,
     return 0;
 }
 
+// 自己的日志
+static void ownLog(const char *fmt, ...) {
+    va_list ap;
+    FILE *fp;
+
+    fp = (server.logfile == NULL) ? stdout : fopen(server.logfile,"a");
+    if (!fp) return;
+
+    va_start(ap, fmt);
+    if (1) {
+        char buf[64];
+        time_t now;
+
+        now = time(NULL);
+        strftime(buf,64,"%d %b %H:%M:%S",localtime(&now));
+        fprintf(fp,"ownLog [%d] %s ",(int)getpid(),buf);
+        vfprintf(fp, fmt, ap);
+        fprintf(fp,"\n");
+        fflush(fp);
+    }
+    va_end(ap);
+
+    if (server.logfile) fclose(fp);
+}
+
 static void redisLog(int level, const char *fmt, ...) {
     va_list ap;
     FILE *fp;
@@ -9140,6 +9165,7 @@ int main(int argc, char **argv) {
 #ifdef __linux__
     linuxOvercommitMemoryWarning();
 #endif
+    ownLog("start");
     start = time(NULL);
     if (server.appendonly) {
         if (loadAppendOnlyFile(server.appendfilename) == REDIS_OK)

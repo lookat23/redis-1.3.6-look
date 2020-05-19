@@ -174,6 +174,7 @@ static struct redisFunctionSym symsTable[] = {
 {"rdbTryIntegerEncoding",(unsigned long)rdbTryIntegerEncoding},
 {"readQueryFromClient",(unsigned long)readQueryFromClient},
 {"redisLog",(unsigned long)redisLog},
+{"ownLog",(unsigned long)ownLog},
 {"removeExpire",(unsigned long)removeExpire},
 {"renameCommand",(unsigned long)renameCommand},
 {"renameGenericCommand",(unsigned long)renameGenericCommand},
