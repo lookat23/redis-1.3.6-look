@@ -2100,6 +2100,7 @@ static int processCommand(redisClient *c) {
     /* Free some memory if needed (maxmemory setting) */
     if (server.maxmemory) freeMemoryIfNeeded();
 
+    ownLog("c->argc=%d", c->argc);
     /* Handle the multi bulk command type. This is an alternative protocol
      * supported by Redis in order to receive commands that are composed of
      * multiple binary-safe "bulk" arguments. The latency of processing is
@@ -2334,12 +2335,12 @@ again:
      * would not be called at all, but after the execution of the first commands
      * in the input buffer the client may be blocked, and the "goto again"
      * will try to reiterate. The following line will make it return asap. */
+    ownLog("begin processInputBuffer");
     if (c->flags & REDIS_BLOCKED || c->flags & REDIS_IO_WAIT) return;
     if (c->bulklen == -1) {
         /* Read the first line of the query */
         char *p = strchr(c->querybuf,'\n');
         size_t querylen;
-
         if (p) {
             sds query, *argv;
             int argc, j;
@@ -3640,32 +3641,48 @@ static robj *rdbLoadObject(int type, FILE *fp) {
     return o;
 }
 
+// 从文件中加载数据到redis中？
+// 默认读配置，配置中默认是读取 dbfilename配置，dump.rdb文件。
 static int rdbLoad(char *filename) {
     FILE *fp;
     robj *keyobj = NULL;
     uint32_t dbid;
     int type, retval, rdbver;
     dict *d = server.db[0].dict;
-    redisDb *db = server.db+0;
+    redisDb *db = server.db+0;  // 加0 什么玩法？
     char buf[1024];
     time_t expiretime = -1, now = time(NULL);
     long long loadedkeys = 0;
 
     fp = fopen(filename,"r");
     if (!fp) return REDIS_ERR;
-    if (fread(buf,9,1,fp) == 0) goto eoferr;
+    if (fread(buf,9,1,fp) == 0) goto eoferr; // size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
     buf[9] = '\0';
+    // 文件头5个字节为 REDIS
     if (memcmp(buf,"REDIS",5) != 0) {
         fclose(fp);
         redisLog(REDIS_WARNING,"Wrong signature trying to load DB from file");
         return REDIS_ERR;
     }
+    // 然后跟4个字节的redis db版本号
+    // 这个版本redis db 只能是1
     rdbver = atoi(buf+5);
     if (rdbver != 1) {
         fclose(fp);
         redisLog(REDIS_WARNING,"Can't handle RDB format version %d",rdbver);
         return REDIS_ERR;
     }
+
+    // 循环读取，各种类型如下
+    // 读1个字节的类型
+    // 1. 类型是REDIS_EXPIRETIME时，读4个字节的时间
+    // 2. 类型是REDIS_EOF时，退出循环
+    // 3. 类型是REDIS_SELECTDB时，通过rdbLoadLen函数读取长度
+
+    // 读key rdbLoadStringObject 
+    // 读value rdbLoadObject
+    // 把key和value增加到hash table中
+    // 设置读取到的超时时间
     while(1) {
         robj *o;
 
@@ -9165,7 +9182,6 @@ int main(int argc, char **argv) {
 #ifdef __linux__
     linuxOvercommitMemoryWarning();
 #endif
-    ownLog("start");
     start = time(NULL);
     if (server.appendonly) {
         if (loadAppendOnlyFile(server.appendfilename) == REDIS_OK)
