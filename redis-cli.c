@@ -34,11 +34,44 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <time.h>
 
 #include "anet.h"
 #include "sds.h"
 #include "adlist.h"
 #include "zmalloc.h"
+
+// 自己的日志
+static void ownLog(const char *fmt, ...) {
+    va_list ap;
+    FILE *fp;
+
+    fp = stdout;
+    if (!fp) return;
+
+    va_start(ap, fmt);
+    if (1) {
+        char buf[64];
+        time_t now;
+
+        now = time(NULL);
+        strftime(buf,64,"%d %b %H:%M:%S",localtime(&now));
+        fprintf(fp,"ownLog [%d] %s ",(int)getpid(),buf);
+        vfprintf(fp, fmt, ap);
+        fprintf(fp,"\n");
+        fflush(fp);
+    }
+    va_end(ap);
+}
+
+static const char* getStrHex(const char *s)
+{
+    static  char buf[1024];
+  while(*s)
+    sprintf(buf + strlen(buf), "%02x", (unsigned int) *s++);
+  return buf;
+}
 
 #define REDIS_CMD_INLINE 1
 #define REDIS_CMD_BULK 2
@@ -60,6 +93,10 @@ struct redisCommand {
     int arity;
     int flags;
 };
+
+// 要区分BULK和INLINE是因为INLINE是那种参数不会出现\r\n的
+// 而BULK的参数是有可能出现\r\n这种会影响原来协议判断的，例如 value的值 就是BULK的了
+// 需要先传value的长度，再传value值
 
 static struct redisCommand cmdTable[] = {
     {"auth",2,REDIS_CMD_INLINE},
@@ -348,8 +385,12 @@ static int cliSendCommand(int argc, char **argv) {
             for (j = 0; j < argc; j++) {
                 if (j != 0) cmd = sdscat(cmd," ");
                 if (j == argc-1 && rc->flags & REDIS_CMD_BULK) {
+                    ownLog("%lu", strlen(argv[j])); 
+                    ownLog("%s", cmd);
                     cmd = sdscatprintf(cmd,"%lu",
                         (unsigned long)sdslen(argv[j]));
+
+                    ownLog("%s", getStrHex(cmd)); 
                 } else {
                     cmd = sdscatlen(cmd,argv[j],sdslen(argv[j]));
                 }
