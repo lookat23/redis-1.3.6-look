@@ -97,6 +97,7 @@ struct redisCommand {
 // 要区分BULK和INLINE是因为INLINE是那种参数不会出现\r\n的
 // 而BULK的参数是有可能出现\r\n这种会影响原来协议判断的，例如 value的值 就是BULK的了
 // 需要先传value的长度，再传value值
+// MULTIBULK 貌似是更复杂的情况
 
 static struct redisCommand cmdTable[] = {
     {"auth",2,REDIS_CMD_INLINE},
